@@ -386,81 +386,60 @@ function App() {
 
   return (
     <div className="app">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Liar Game</p>
-          <h1>라이어게임</h1>
-          <p className="subhead">
-            링크로 방을 공유하고 각자 역할을 확인하세요. 바보 모드로만 진행됩니다.
-          </p>
-          <div className="cta-row">
-            <a className="btn primary" href="#game">게임 시작하기</a>
-            <button className="btn" onClick={copyLink} disabled={!shareLink}>친구 초대하기</button>
-          </div>
-        </div>
-        <div className="hero-card">
-          <div>
-            <p className="label">방 코드</p>
-            <p className="room">{roomData?.name ? roomData.name : generateRoomCode()}</p>
-          </div>
-          <div className="pill">바보 모드</div>
-          <p className="helper">라이어는 단어를 전혀 모릅니다.</p>
-        </div>
+      <header className="home-actions">
+        <a className="btn primary" href="#create">방 만들기</a>
+        <a className="btn" href="#how-to-play">플레이 방법</a>
       </header>
 
-      <section className="section" id="game">
-        <h2>게임 시작하기</h2>
+      <section className="section" id="create">
+        <h2>방 만들기</h2>
         <p className="muted">방을 만들고 링크를 공유해 팀원이 접속하세요.</p>
 
         <section className="panel">
           <div className="panel-header">
-            <h3>방 만들기 / 입장</h3>
-            <p>방 이름을 입력하고 링크를 공유하세요.</p>
+            <h3>{roomId ? '방 입장' : '방 만들기'}</h3>
+            <p>{roomId ? '닉네임을 입력하고 입장하세요.' : '방 이름을 입력하고 링크를 공유하세요.'}</p>
           </div>
           <div className="grid">
-            <div className="card">
-              <h3>방 만들기</h3>
-              <div className="stack">
-                <input
-                  type="text"
-                  placeholder="방 이름"
-                  value={roomName}
-                  onChange={(event) => setRoomName(event.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="내 닉네임"
-                  value={playerName}
-                  onChange={(event) => setPlayerName(event.target.value)}
-                />
-                <button className="btn primary" onClick={createRoom} disabled={loading}>방 만들기</button>
-              </div>
-            </div>
-            <div className="card">
-              <h3>방 입장</h3>
-              <div className="stack">
-                <input
-                  type="text"
-                  placeholder="현재 링크에 자동 입력"
-                  value={roomId}
-                  onChange={(event) => setRoomId(event.target.value.trim())}
-                />
-                <input
-                  type="text"
-                  placeholder="내 닉네임"
-                  value={playerName}
-                  onChange={(event) => setPlayerName(event.target.value)}
-                />
-                <button className="btn" onClick={joinRoom} disabled={loading || !roomId}>입장</button>
-              </div>
-              {shareLink && (
-                <div className="share-link">
-                  <p className="label">방 링크</p>
-                  <p>{shareLink}</p>
-                  <button className="ghost" onClick={copyLink}>링크 복사</button>
+            {!roomId && (
+              <div className="card">
+                <h3>방 만들기</h3>
+                <div className="stack">
+                  <input
+                    type="text"
+                    placeholder="방 이름"
+                    value={roomName}
+                    onChange={(event) => setRoomName(event.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="내 닉네임"
+                    value={playerName}
+                    onChange={(event) => setPlayerName(event.target.value)}
+                  />
+                  <button className="btn primary" onClick={createRoom} disabled={loading}>
+                    방 만들기
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {roomId && !playerId && (
+              <div className="card">
+                <h3>방 입장</h3>
+                <div className="stack">
+                  <input
+                    type="text"
+                    placeholder="내 닉네임"
+                    value={playerName}
+                    onChange={(event) => setPlayerName(event.target.value)}
+                  />
+                  <button className="btn primary" onClick={joinRoom} disabled={loading}>
+                    입장
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           {error && <p className="error">{error}</p>}
         </section>
@@ -484,6 +463,13 @@ function App() {
                 </div>
               </div>
               <div className="card">
+                {shareLink && (
+                  <div className="share-link">
+                    <p className="label">방 링크</p>
+                    <p>{shareLink}</p>
+                    <button className="ghost" onClick={copyLink}>링크 복사</button>
+                  </div>
+                )}
                 <h3>제시어 설정</h3>
                 <div className="radio-group">
                   <label className={roomData?.topicMode === 'random' ? 'radio active' : 'radio'}>
@@ -807,6 +793,18 @@ function App() {
             </div>
           </section>
         )}
+      </section>
+
+      <section className="section" id="how-to-play">
+        <h2>플레이 방법</h2>
+        <div className="panel">
+          <p>방을 만들고 모든 플레이어가 참가하면 게임을 시작합니다.</p>
+          <p>랜덤으로 한 사람이 라이어로 선택됩니다. (자신의 화면에 표시됩니다.)</p>
+          <p>모든 플레이어에게 제시어의 주제가 공개됩니다. 단, 라이어는 제시어를 알 수 없습니다.</p>
+          <p>차례대로 돌아가며 제시어를 설명합니다. 너무 구체적이면 라이어가 알아챌 수 있고, 너무 두루뭉술하면 라이어로 의심받을 수 있습니다.</p>
+          <p>충분히 정보가 모이면 전원 동의하에 라이어를 투표할 수 있습니다.</p>
+          <p>가장 많은 표를 받은 플레이어가 라이어가 아니라면 라이어의 승리입니다. 라이어가 지목되면 변론 기회가 있으며, 제시어를 맞히면 라이어 승리, 틀리면 라이어 패배입니다.</p>
+        </div>
       </section>
     </div>
   )
