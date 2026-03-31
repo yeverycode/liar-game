@@ -9,6 +9,9 @@ import {
   collection,
 } from 'firebase/firestore'
 import './App.css'
+import Header from './components/Header'
+import Footer from './components/Footer'
+import TeamCards from './components/TeamCards'
 import { db } from './firebase'
 
 const TOPICS = [
@@ -80,14 +83,16 @@ function App() {
   const [roomId, setRoomId] = useState(
     () => new URLSearchParams(window.location.search).get('room') || ''
   )
+  const [view, setView] = useState('home')
   const [playerId, setPlayerId] = useState('')
   const [isHost, setIsHost] = useState(false)
   const [roomData, setRoomData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [hostTab, setHostTab] = useState('stage')
+  const [localVote, setLocalVote] = useState('')
 
   const [revealOpen, setRevealOpen] = useState(false)
-  const [liarGuess, setLiarGuess] = useState('')
 
   const shareLink = roomId
     ? `${window.location.origin}${window.location.pathname}?room=${roomId}`
@@ -95,6 +100,7 @@ function App() {
 
   useEffect(() => {
     if (!roomId) return
+    setView('create')
     const roomRef = doc(db, 'rooms', roomId)
     const unsub = onSnapshot(roomRef, (snap) => {
       if (!snap.exists()) {
@@ -116,17 +122,21 @@ function App() {
   const liarId = roomData?.liarId
   const isLiar = liarId && playerId === liarId
 
-  const totalTurns = useMemo(
-    () => (roomData ? roomData.rounds * playerCount : 0),
-    [roomData, playerCount]
-  )
-  const turnIndex = roomData?.turnIndex || 0
-  const currentSpeakerId = roomData?.turnOrder?.[turnIndex % Math.max(playerCount, 1)]
-  const currentSpeaker = roomPlayers.find((player) => player.id === currentSpeakerId)
-  const currentRound = playerCount === 0 ? 0 : Math.floor(turnIndex / playerCount) + 1
 
   const votes = roomData?.votes || {}
   const votesComplete = playerCount > 0 && Object.keys(votes).length === playerCount
+  const revealedCount = roomData?.revealed ? Object.keys(roomData.revealed).length : 0
+
+  useEffect(() => {
+    if (roomStage !== STAGES.VOTING) return
+    if (!votesComplete) return
+    setStage(STAGES.RESULT)
+  }, [roomStage, votesComplete, roomId])
+
+  useEffect(() => {
+    if (!playerId) return
+    setLocalVote(votes[playerId] || '')
+  }, [playerId, votes])
 
   const tally = useMemo(() => {
     const counts = {}
@@ -179,6 +189,7 @@ function App() {
         turnOrder: [],
         turnIndex: 0,
         votes: {},
+        revealed: {},
         liarGuess: '',
         guessResult: null,
       }
@@ -203,6 +214,8 @@ function App() {
     try {
       const joinPlayerId = crypto.randomUUID()
       const roomRef = doc(db, 'rooms', roomId)
+      let existingId = ''
+      let hostId = ''
 
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(roomRef)
@@ -210,20 +223,28 @@ function App() {
           throw new Error('not-found')
         }
         const data = snap.data()
+        hostId = data.hostId
         const players = data.players || []
-        if (players.some((player) => player.name === trimmedName)) {
-          throw new Error('duplicate')
+        const found = players.find((player) => player.name === trimmedName)
+        if (found) {
+          existingId = found.id
+          return
         }
         tx.update(roomRef, {
           players: [...players, { id: joinPlayerId, name: trimmedName }],
         })
       })
 
-      setPlayerId(joinPlayerId)
-      setIsHost(false)
+      if (existingId) {
+        setPlayerId(existingId)
+        setIsHost(existingId === hostId)
+      } else {
+        setPlayerId(joinPlayerId)
+        setIsHost(false)
+      }
     } catch (err) {
-      if (err.message === 'duplicate') {
-        setError('이미 사용 중인 이름입니다.')
+      if (err.message === 'not-found') {
+        setError('방에 입장할 수 없습니다.')
       } else {
         setError('방에 입장할 수 없습니다.')
       }
@@ -249,7 +270,7 @@ function App() {
       word = pickedTopic ? randomItem(pickedTopic.words) : '랜덤 제시어'
     }
 
-    const shuffledPlayers = roomData.randomOrder ? shuffle(roomPlayers) : [...roomPlayers]
+    const shuffledPlayers = shuffle(roomPlayers)
     const liarPick = randomItem(shuffledPlayers)
 
     await updateDoc(roomRef, {
@@ -260,6 +281,7 @@ function App() {
       turnOrder: shuffledPlayers.map((player) => player.id),
       turnIndex: 0,
       votes: {},
+      revealed: {},
       liarGuess: '',
       guessResult: null,
     })
@@ -271,15 +293,12 @@ function App() {
     await updateDoc(roomRef, payload)
   }
 
-  const advanceTurn = async () => {
-    if (!roomData || !isHost) return
+  const setStage = async (nextStage) => {
+    if (!roomId) return
     const roomRef = doc(db, 'rooms', roomId)
-    if (turnIndex + 1 >= totalTurns) {
-      await updateDoc(roomRef, { stage: STAGES.VOTING })
-      return
-    }
-    await updateDoc(roomRef, { turnIndex: turnIndex + 1 })
+    await updateDoc(roomRef, { stage: nextStage })
   }
+
 
   const updateVote = async (suspectId) => {
     if (!roomId || !playerId) return
@@ -287,20 +306,8 @@ function App() {
     await updateDoc(roomRef, { [`votes.${playerId}`]: suspectId })
   }
 
-  const submitGuess = async () => {
-    if (!roomId || !isLiar) return
-    const normalizedGuess = liarGuess.trim()
-    if (!normalizedGuess) return
-    const success = normalizedGuess === roomData.selectedWord
-    const roomRef = doc(db, 'rooms', roomId)
-    await updateDoc(roomRef, {
-      liarGuess: normalizedGuess,
-      guessResult: success,
-    })
-  }
-
   const resetGame = async () => {
-    if (!roomId || !isHost) return
+    if (!roomId) return
     const roomRef = doc(db, 'rooms', roomId)
     await updateDoc(roomRef, {
       stage: STAGES.LOBBY,
@@ -310,11 +317,19 @@ function App() {
       turnOrder: [],
       turnIndex: 0,
       votes: {},
+      revealed: {},
       liarGuess: '',
       guessResult: null,
     })
     setRevealOpen(false)
-    setLiarGuess('')
+  }
+
+  const removePlayer = async (removeId) => {
+    if (!roomId || !isHost || !roomData) return
+    if (removeId === roomData.hostId) return
+    const roomRef = doc(db, 'rooms', roomId)
+    const nextPlayers = roomPlayers.filter((player) => player.id !== removeId)
+    await updateDoc(roomRef, { players: nextPlayers })
   }
 
   const copyLink = async () => {
@@ -326,171 +341,198 @@ function App() {
 
   return (
     <div className="app">
-      <header className="home-actions">
-        <a className="btn primary" href="#create">방 만들기</a>
-        <a className="btn" href="#how-to-play">플레이 방법</a>
-      </header>
-
-      <section className="section" id="create">
-        <h2>방 만들기</h2>
-        <p className="muted">방을 만들고 링크를 공유해 팀원이 접속하세요.</p>
-
-        <section className="panel">
-          <div className="panel-header">
-            <h3>{roomId ? '방 입장' : '방 만들기'}</h3>
-            <p>{roomId ? '닉네임을 입력하고 입장하세요.' : '방 이름을 입력하고 링크를 공유하세요.'}</p>
+      <Header view={view} onNavigate={setView} />
+      {view === 'home' && (
+        <section className="section">
+          <TeamCards />
+          <div className="home-cta">
+            <button className="btn primary" type="button" onClick={() => setView('create')}>
+              시작하기
+            </button>
           </div>
-          <div className="grid">
-            {!roomId && (
-              <div className="card">
-                <h3>방 만들기</h3>
-                <div className="stack">
-                  <input
-                    type="text"
-                    placeholder="방 이름"
-                    value={roomName}
-                    onChange={(event) => setRoomName(event.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="내 닉네임"
-                    value={playerName}
-                    onChange={(event) => setPlayerName(event.target.value)}
-                  />
-                  <button className="btn primary" onClick={createRoom} disabled={loading}>
-                    방 만들기
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {roomId && !playerId && (
-              <div className="card">
-                <h3>방 입장</h3>
-                <div className="stack">
-                  <input
-                    type="text"
-                    placeholder="내 닉네임"
-                    value={playerName}
-                    onChange={(event) => setPlayerName(event.target.value)}
-                  />
-                  <button className="btn primary" onClick={joinRoom} disabled={loading}>
-                    입장
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          {shareLink && (
-            <div className="share-link">
-              <p className="label">방 링크</p>
-              <p>{shareLink}</p>
-              <button className="ghost" onClick={copyLink}>링크 복사</button>
-            </div>
-          )}
-          {error && <p className="error">{error}</p>}
         </section>
+      )}
 
-        {enterLobby && (
+      {view === 'create' && (
+        <section className="section" id="create">
+          {enterLobby ? (
+            <p className="muted">
+              {roomData?.hostId === playerId ? `${currentPlayer?.name}님이 만든 ${roomData?.name}방입니다.` : `${roomData?.name}방입니다.`}
+              <br />
+              링크를 공유해 팀원을 추가해보세요.
+            </p>
+          ) : (
+            <p className="muted">방을 만들고 링크를 공유해 팀원이 접속하세요.</p>
+          )}
+
           <section className="panel">
             <div className="panel-header">
-              <h3>대기실</h3>
-              <p>모든 팀원이 입장하면 게임을 시작하세요.</p>
+              <h3>{roomId ? '방 입장' : '방 만들기'}</h3>
+              {!enterLobby && (
+                <p>{roomId ? '닉네임을 입력하고 입장하세요.' : '방 이름을 입력하고 링크를 공유하세요.'}</p>
+              )}
             </div>
             <div className="grid">
-              <div className="card">
-                <h3>참가자</h3>
-                <div className="player-list">
-                  {roomPlayers.map((player, index) => (
-                    <div key={player.id} className="player-item">
-                      <span>{index + 1}. {player.name}</span>
-                      {roomData?.hostId === player.id && <span className="badge success">HOST</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="card">
-                <h3>제시어 설정</h3>
-                <div className="radio-group">
-                  <label className={roomData?.topicMode === 'random' ? 'radio active' : 'radio'}>
+              {!roomId && (
+                <div className="card">
+                  <h3>방 만들기</h3>
+                  <div className="stack">
                     <input
-                      type="radio"
-                      name="topicMode"
-                      value="random"
-                      checked={roomData?.topicMode === 'random'}
-                      onChange={() => updateRoomSettings({ topicMode: 'random' })}
-                      disabled={!isHost}
+                      type="text"
+                      placeholder="방 이름"
+                      value={roomName}
+                      onChange={(event) => setRoomName(event.target.value)}
                     />
-                    랜덤 주제
-                  </label>
-                  <label className={roomData?.topicMode === 'select' ? 'radio active' : 'radio'}>
                     <input
-                      type="radio"
-                      name="topicMode"
-                      value="select"
-                      checked={roomData?.topicMode === 'select'}
-                      onChange={() => updateRoomSettings({ topicMode: 'select' })}
-                      disabled={!isHost}
+                      type="text"
+                      placeholder="내 닉네임"
+                      value={playerName}
+                      onChange={(event) => setPlayerName(event.target.value)}
                     />
-                    주제 선택
-                  </label>
-                </div>
-
-                {roomData?.topicMode === 'select' && (
-                  <div className="select-row">
-                    <select
-                      value={roomData?.topicId || TOPICS[0].id}
-                      onChange={(event) => updateRoomSettings({ topicId: event.target.value })}
-                      disabled={!isHost}
-                    >
-                      {TOPICS.map((topic) => (
-                        <option key={topic.id} value={topic.id}>
-                          {topic.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="hint">선택한 주제 내에서 제시어가 랜덤으로 지정됩니다.</p>
+                    <button className="btn primary" onClick={createRoom} disabled={loading}>
+                      방 만들기
+                    </button>
                   </div>
-                )}
-
-                <div className="stack">
-                  <label className="inline">
-                    설명 라운드 수
-                    <input
-                      type="number"
-                      min="1"
-                      max="5"
-                      value={roomData?.rounds || 1}
-                      onChange={(event) => updateRoomSettings({ rounds: Number(event.target.value) })}
-                      disabled={!isHost}
-                    />
-                  </label>
-                  <label className="inline">
-                    <input
-                      type="checkbox"
-                      checked={roomData?.randomOrder ?? true}
-                      onChange={(event) => updateRoomSettings({ randomOrder: event.target.checked })}
-                      disabled={!isHost}
-                    />
-                    순서 랜덤
-                  </label>
                 </div>
-              </div>
-            </div>
+              )}
 
-            <div className="panel-footer">
-              <div>
-                <p className="muted">최소 3명 이상 필요</p>
-                <p className="count">현재 {playerCount}명</p>
+              {roomId && !playerId && (
+                <div className="card">
+                  <h3>방 입장</h3>
+                  <div className="stack">
+                    <input
+                      type="text"
+                      placeholder="내 닉네임"
+                      value={playerName}
+                      onChange={(event) => setPlayerName(event.target.value)}
+                    />
+                    <button className="btn primary" onClick={joinRoom} disabled={loading}>
+                      입장
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            {shareLink && (
+              <div className="share-link">
+                <p className="label">방 링크</p>
+                <div className="share-row">
+                  <input type="text" value={shareLink} readOnly />
+                  <button className="btn primary" type="button" onClick={copyLink}>링크 복사</button>
+                </div>
+                <p className="hint">이 링크를 공유하면 바로 같은 방으로 입장합니다.</p>
               </div>
-              <button className="btn primary" onClick={startGame} disabled={!isHost || playerCount < 3}>
-                게임 시작
+            )}
+            {error && <p className="error">{error}</p>}
+          </section>
+
+          {enterLobby && isHost && (
+            <div className="host-tabs">
+              <button
+                className={hostTab === 'lobby' ? 'tab active' : 'tab'}
+                type="button"
+                onClick={() => setHostTab('lobby')}
+              >
+                대기실
+              </button>
+              <button
+                className={hostTab === 'stage' ? 'tab active' : 'tab'}
+                type="button"
+                onClick={() => setHostTab('stage')}
+              >
+                게임 진행
               </button>
             </div>
-          </section>
-        )}
+          )}
 
-        {roomStage === STAGES.REVEAL && enterLobby && (
+          {enterLobby && (roomStage === STAGES.LOBBY || (isHost && hostTab === 'lobby')) && (
+            <section className="panel">
+              <div className="panel-header">
+                <h3>대기실</h3>
+                <p>모든 팀원이 입장하면 게임을 시작하세요.</p>
+              </div>
+              <div className="grid">
+                <div className="card">
+                  <h3>참가자</h3>
+                  <div className="player-list">
+                    {roomPlayers.map((player, index) => (
+                      <div key={player.id} className="player-item">
+                        <span>{index + 1}. {player.name}</span>
+                        <div className="player-actions">
+                          {roomData?.hostId === player.id && <span className="badge success">HOST</span>}
+                          {isHost && player.id !== roomData?.hostId && (
+                            <button className="ghost danger" onClick={() => removePlayer(player.id)}>
+                              삭제
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="card">
+                  <h3>제시어 설정</h3>
+                  <p className="muted">주제 선택과 게임 시작은 방장만 가능합니다.</p>
+                  <div className="radio-group">
+                    <label className={roomData?.topicMode === 'random' ? 'radio active' : 'radio'}>
+                      <input
+                        type="radio"
+                        name="topicMode"
+                        value="random"
+                        checked={roomData?.topicMode === 'random'}
+                        onChange={() => updateRoomSettings({ topicMode: 'random' })}
+                        disabled={!isHost}
+                      />
+                      랜덤 주제
+                    </label>
+                    <label className={roomData?.topicMode === 'select' ? 'radio active' : 'radio'}>
+                      <input
+                        type="radio"
+                        name="topicMode"
+                        value="select"
+                        checked={roomData?.topicMode === 'select'}
+                        onChange={() => updateRoomSettings({ topicMode: 'select' })}
+                        disabled={!isHost}
+                      />
+                      주제 선택
+                    </label>
+                  </div>
+
+                  {roomData?.topicMode === 'select' && (
+                    <div className="select-row">
+                      <select
+                        value={roomData?.topicId || TOPICS[0].id}
+                        onChange={(event) => updateRoomSettings({ topicId: event.target.value })}
+                        disabled={!isHost}
+                      >
+                        {TOPICS.map((topic) => (
+                          <option key={topic.id} value={topic.id}>
+                            {topic.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="hint">선택한 주제 내에서 제시어가 랜덤으로 지정됩니다.</p>
+                    </div>
+                  )}
+
+                  <div className="stack">
+                    <p className="muted">게임은 기본 1라운드, 랜덤 순서로 진행됩니다.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="panel-footer">
+                <div>
+                  <p className="muted">최소 3명 이상 필요</p>
+                  <p className="count">현재 {playerCount}명</p>
+                </div>
+                <button className="btn primary" onClick={startGame} disabled={!isHost || playerCount < 3}>
+                  게임 시작
+                </button>
+              </div>
+            </section>
+          )}
+        {roomStage === STAGES.REVEAL && enterLobby && (!isHost || hostTab === 'stage') && (
           <section className="panel">
             <div className="panel-header">
               <h3>정체 공개</h3>
@@ -505,7 +547,16 @@ function App() {
               </div>
 
               {!revealOpen ? (
-                <button className="btn primary" onClick={() => setRevealOpen(true)}>
+                <button
+                  className="btn primary"
+                  onClick={async () => {
+                    setRevealOpen(true)
+                    if (roomId && playerId) {
+                      const roomRef = doc(db, 'rooms', roomId)
+                      await updateDoc(roomRef, { [`revealed.${playerId}`]: true })
+                    }
+                  }}
+                >
                   정체 보기
                 </button>
               ) : (
@@ -527,60 +578,19 @@ function App() {
             </div>
 
             <div className="panel-footer">
+              <p className="muted">투표 시작 버튼은 방장만 누를 수 있습니다.</p>
               <button
                 className="btn primary"
-                onClick={() => updateRoomSettings({ stage: STAGES.DISCUSSION })}
+                onClick={() => setStage(STAGES.VOTING)}
                 disabled={!isHost}
               >
-                토론 시작
+                투표 시작
               </button>
             </div>
           </section>
         )}
 
-        {roomStage === STAGES.DISCUSSION && enterLobby && (
-          <section className="panel">
-            <div className="panel-header">
-              <h3>설명 라운드</h3>
-              <p>주제: {roomData?.selectedTopic} · 라운드 {currentRound}/{roomData?.rounds}</p>
-            </div>
-
-            <div className="discussion">
-              <div className="turn-card">
-                <p className="label">현재 차례</p>
-                <h3>{currentSpeaker?.name}</h3>
-                <p className="hint">차례가 끝나면 다음 버튼을 눌러주세요.</p>
-                <button className="btn primary" onClick={advanceTurn} disabled={!isHost}>
-                  다음 사람
-                </button>
-              </div>
-
-              <div className="order">
-                <p className="label">진행 순서</p>
-                <ul>
-                  {roomData?.turnOrder?.map((id, index) => {
-                    const player = roomPlayers.find((item) => item.id === id)
-                    return (
-                      <li key={id} className={index === turnIndex % playerCount ? 'active' : ''}>
-                        <span>{index + 1}</span>
-                        {player?.name}
-                      </li>
-                    )
-                  })}
-                </ul>
-                <button
-                  className="ghost"
-                  onClick={() => updateRoomSettings({ stage: STAGES.VOTING })}
-                  disabled={!isHost}
-                >
-                  투표 시작
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {roomStage === STAGES.VOTING && enterLobby && (
+        {roomStage === STAGES.VOTING && enterLobby && (!isHost || hostTab === 'stage') && (
           <section className="panel">
             <div className="panel-header">
               <h3>라이어 투표</h3>
@@ -588,13 +598,12 @@ function App() {
             </div>
 
             <div className="vote-grid">
-              {roomPlayers.map((player) => (
-                <div key={player.id} className="vote-card">
-                  <p className="label">{player.name}의 선택</p>
+              {currentPlayer && (
+                <div className="vote-card">
+                  <p className="label">{currentPlayer.name}의 선택</p>
                   <select
-                    value={votes[player.id] || ''}
-                    onChange={(event) => updateVote(event.target.value)}
-                    disabled={player.id !== playerId}
+                    value={localVote}
+                    onChange={(event) => setLocalVote(event.target.value)}
                   >
                     <option value="" disabled>선택하기</option>
                     {roomPlayers.map((target) => (
@@ -604,29 +613,22 @@ function App() {
                     ))}
                   </select>
                 </div>
-              ))}
+              )}
             </div>
 
             <div className="panel-footer">
               <button
-                className="btn"
-                onClick={() => updateRoomSettings({ stage: STAGES.DISCUSSION })}
-                disabled={!isHost}
-              >
-                토론으로 돌아가기
-              </button>
-              <button
                 className="btn primary"
-                onClick={() => updateRoomSettings({ stage: STAGES.RESULT })}
-                disabled={!isHost || !votesComplete}
+                onClick={() => updateVote(localVote)}
+                disabled={!localVote}
               >
-                결과 보기
+                투표하기
               </button>
             </div>
           </section>
         )}
 
-        {roomStage === STAGES.RESULT && enterLobby && (
+        {roomStage === STAGES.RESULT && enterLobby && (!isHost || hostTab === 'stage') && (
           <section className="panel">
             <div className="panel-header">
               <h3>결과</h3>
@@ -635,17 +637,22 @@ function App() {
 
             <div className="result">
               <div className="result-card">
-                <p className="label">투표 결과</p>
-                {voteTie && (
-                  <p className="emphasis">동률입니다. 재투표를 진행하세요.</p>
-                )}
-                {!voteTie && liarWinsByVote && (
-                  <p className="emphasis">라이어가 들키지 않았습니다. 라이어 승리!</p>
-                )}
-                {liarCaught && (
-                  <p className="emphasis">라이어가 지목되었습니다. 변론 단계로 이동합니다.</p>
-                )}
+                <p className="label">가장 많이 받은 사람</p>
+                <p className="emphasis">
+                  {topSuspects.length === 0
+                    ? '투표 없음'
+                    : topSuspects
+                        .map((id) => roomPlayers.find((player) => player.id === id)?.name || '알 수 없음')
+                        .join(', ')}
+                </p>
+                <p className="label" style={{ marginTop: 12 }}>진짜 라이어</p>
+                <p className="emphasis">
+                  {roomPlayers.find((player) => player.id === liarId)?.name || '알 수 없음'}
+                </p>
+              </div>
 
+              <div className="result-card">
+                <p className="label">전체 투표 결과</p>
                 <div className="tally">
                   {roomPlayers.map((player) => (
                     <div key={player.id}>
@@ -654,68 +661,31 @@ function App() {
                     </div>
                   ))}
                 </div>
-
-                {voteTie && (
-                  <button
-                    className="btn"
-                    onClick={() => updateRoomSettings({ stage: STAGES.VOTING, votes: {} })}
-                    disabled={!isHost}
-                  >
-                    재투표
-                  </button>
-                )}
-              </div>
-
-              <div className="result-card">
-                <p className="label">라이어 변론</p>
-                {liarCaught ? (
-                  <>
-                    <p className="hint">라이어는 제시어를 맞히면 승리합니다.</p>
-                    <input
-                      type="text"
-                      placeholder="제시어 입력"
-                      value={liarGuess}
-                      onChange={(event) => setLiarGuess(event.target.value)}
-                      disabled={!isLiar}
-                    />
-                    <button className="btn primary" onClick={submitGuess} disabled={!isLiar}>
-                      정답 제출
-                    </button>
-                    {roomData?.guessResult !== null && (
-                      <p className={roomData?.guessResult ? 'badge success' : 'badge danger'}>
-                        {roomData?.guessResult ? '정답입니다. 라이어 승리!' : '틀렸습니다. 시민 승리!'}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="hint">라이어가 지목되지 않아 변론 단계가 없습니다.</p>
-                )}
-                <div className="answer">
-                  <p className="label">제시어</p>
-                  <p>{roomData?.selectedWord}</p>
-                  <p className="hint">주제: {roomData?.selectedTopic}</p>
-                </div>
               </div>
             </div>
 
             <div className="panel-footer">
-              <button className="btn" onClick={resetGame} disabled={!isHost}>새 게임</button>
+              <button className="btn" onClick={resetGame}>게임 다시하기</button>
             </div>
           </section>
         )}
       </section>
+      )}
 
-      <section className="section" id="how-to-play">
-        <h2>플레이 방법</h2>
-        <div className="panel">
-          <p>방을 만들고 모든 플레이어가 참가하면 게임을 시작합니다.</p>
-          <p>랜덤으로 한 사람이 라이어로 선택됩니다. (자신의 화면에 표시됩니다.)</p>
-          <p>모든 플레이어에게 제시어의 주제가 공개됩니다. 단, 라이어는 제시어를 알 수 없습니다.</p>
-          <p>차례대로 돌아가며 제시어를 설명합니다. 너무 구체적이면 라이어가 알아챌 수 있고, 너무 두루뭉술하면 라이어로 의심받을 수 있습니다.</p>
-          <p>충분히 정보가 모이면 전원 동의하에 라이어를 투표할 수 있습니다.</p>
-          <p>가장 많은 표를 받은 플레이어가 라이어가 아니라면 라이어의 승리입니다. 라이어가 지목되면 변론 기회가 있으며, 제시어를 맞히면 라이어 승리, 틀리면 라이어 패배입니다.</p>
-        </div>
-      </section>
+      {view === 'how' && (
+        <section className="section" id="how-to-play">
+          <h2>플레이 방법</h2>
+          <div className="panel">
+            <p>방을 만들고 모든 플레이어가 참가하면 게임을 시작합니다.</p>
+            <p>랜덤으로 한 사람이 라이어로 선택됩니다. (자신의 화면에 표시됩니다.)</p>
+            <p>모든 플레이어에게 제시어의 주제가 공개됩니다. 단, 라이어는 제시어를 알 수 없습니다.</p>
+            <p>차례대로 돌아가며 제시어를 설명합니다. 너무 구체적이면 라이어가 알아챌 수 있고, 너무 두루뭉술하면 라이어로 의심받을 수 있습니다.</p>
+            <p>충분히 정보가 모이면 전원 동의하에 라이어를 투표할 수 있습니다.</p>
+            <p>가장 많은 표를 받은 플레이어가 라이어가 아니라면 라이어의 승리입니다. 라이어가 지목되면 변론 기회가 있으며, 제시어를 맞히면 라이어 승리, 틀리면 라이어 패배입니다.</p>
+          </div>
+        </section>
+      )}
+      <Footer />
     </div>
   )
 }

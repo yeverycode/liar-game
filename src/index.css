@@ -1,19 +1,24 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
 
 :root {
   color-scheme: light;
-  --bg: #f5f5f3;
+  --bg: #ffffff;
   --surface: #ffffff;
   --ink: #121212;
   --muted: #5a5a5a;
   --line: #dcdcdc;
-  --accent: #111111;
-  --accent-soft: #f0f0ef;
+  --accent: #1e88fc;
+  --accent-soft: #eef5ff;
+  --google-red: #fd2d27;
+  --google-green: #00ab49;
+  --google-blue: #1e88fc;
+  --google-yellow: #ffa700;
   --success: #1f7a6b;
   --danger: #b4232c;
-  --shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  --shadow: none;
 
-  font-family: 'Noto Sans KR', sans-serif;
+  font-family: 'Pretendard', system-ui, -apple-system, sans-serif;
   font-size: 16px;
   line-height: 1.6;
   color: var(--ink);
@@ -29,7 +34,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: #f5f5f3;
+  background: #ffffff;
 }
 
 #root {
@@ -39,23 +44,23 @@ body {
 h1,
 h2,
 h3 {
-  font-family: 'Montserrat', 'Noto Sans KR', sans-serif;
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
   margin: 0;
   color: var(--ink);
   letter-spacing: -0.02em;
 }
 
 h1 {
-  font-size: clamp(2.4rem, 6vw, 4.2rem);
+  font-size: clamp(2rem, 4.5vw, 3.4rem);
   line-height: 1.05;
 }
 
 h2 {
-  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
 }
 
 h3 {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
 }
 
 p {
@@ -82,8 +87,7 @@ select {
 input:focus,
 select:focus,
 button:focus {
-  outline: 2px solid #1b1b1b;
-  outline-offset: 2px;
+  outline: none;
 }
 
 ul {
