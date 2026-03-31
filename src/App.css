@@ -280,11 +280,17 @@
 
 .btn.primary:hover {
   filter: brightness(0.95);
+  color: #fff;
 }
 
-.btn:hover {
+.btn:not(.primary):hover {
   border-color: var(--google-blue);
   color: var(--google-blue);
+}
+
+.btn.primary:active {
+  filter: brightness(0.92);
+  color: #fff;
 }
 
 .ghost {
