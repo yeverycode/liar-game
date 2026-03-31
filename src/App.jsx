@@ -13,34 +13,16 @@ import { db } from './firebase'
 
 const TOPICS = [
   {
-    id: 'food',
-    label: '음식',
-    en: 'Food',
-    words: ['떡볶이', '김치찌개', '비빔밥', '냉면', '삼겹살', '치킨', '초밥', '라멘'],
+    id: 'language',
+    label: '프로그래밍언어',
+    en: 'Programming',
+    words: ['Python', 'C', 'JavaScript', 'Java'],
   },
   {
-    id: 'animal',
-    label: '동물',
-    en: 'Animal',
-    words: ['강아지', '고양이', '토끼', '사자', '코끼리', '호랑이', '판다', '여우'],
-  },
-  {
-    id: 'place',
-    label: '장소',
-    en: 'Place',
-    words: ['도서관', '놀이공원', '해변', '지하철', '카페', '공항', '박물관', '학교'],
-  },
-  {
-    id: 'job',
-    label: '직업',
-    en: 'Job',
-    words: ['의사', '소방관', '교사', '셰프', '개발자', '기자', '디자이너', '파일럿'],
-  },
-  {
-    id: 'movie',
-    label: '영화/드라마',
-    en: 'Movie/Drama',
-    words: ['어벤져스', '기생충', '이터널 선샤인', '스폰지밥', '오징어 게임', '미스터 선샤인'],
+    id: 'color',
+    label: '색깔',
+    en: 'Color',
+    words: ['빨강', '파랑', '초록', '노랑', '보라', '검정', '흰색', '주황'],
   },
   {
     id: 'sports',
@@ -49,64 +31,22 @@ const TOPICS = [
     words: ['축구', '농구', '야구', '배구', '테니스', '수영', '배드민턴', '탁구'],
   },
   {
-    id: 'fruit',
-    label: '과일',
-    en: 'Fruit',
-    words: ['사과', '바나나', '딸기', '포도', '복숭아', '오렌지', '체리', '수박'],
+    id: 'food',
+    label: '음식',
+    en: 'Food',
+    words: ['떡볶이', '김치찌개', '비빔밥', '냉면', '삼겹살', '치킨', '초밥', '라멘'],
   },
   {
-    id: 'drink',
-    label: '음료',
-    en: 'Drink',
-    words: ['아메리카노', '라떼', '레몬에이드', '콜라', '사이다', '녹차', '우유', '주스'],
+    id: 'job',
+    label: '직업',
+    en: 'Job',
+    words: ['의사', '소방관', '교사', '셰프', '개발자', '기자', '디자이너', '파일럿'],
   },
   {
-    id: 'country',
-    label: '국가',
-    en: 'Country',
-    words: ['한국', '미국', '일본', '프랑스', '영국', '캐나다', '호주', '이탈리아'],
-  },
-  {
-    id: 'brand',
-    label: '브랜드',
-    en: 'Brand',
-    words: ['나이키', '애플', '삼성', '구글', '스타벅스', '코카콜라', '아디다스'],
-  },
-  {
-    id: 'character',
-    label: '캐릭터',
-    en: 'Character',
-    words: ['피카츄', '미키마우스', '둘리', '스폰지밥', '짱구', '헬로키티'],
-  },
-  {
-    id: 'instrument',
-    label: '악기',
-    en: 'Instrument',
-    words: ['피아노', '기타', '바이올린', '드럼', '플루트', '색소폰'],
-  },
-  {
-    id: 'kpop',
-    label: 'K-POP',
-    en: 'K-POP',
-    words: ['BTS', '블랙핑크', '아이유', '세븐틴', '뉴진스', '아이브'],
-  },
-  {
-    id: 'game',
-    label: '게임',
-    en: 'Game',
-    words: ['마리오', '리그오브레전드', '메이플스토리', '오버워치', '발로란트', '마인크래프트'],
-  },
-  {
-    id: 'celebrity',
-    label: '연예인',
-    en: 'Celebrity',
-    words: ['유재석', '손흥민', '아이유', '봉준호', '톰 크루즈', '테일러 스위프트'],
-  },
-  {
-    id: 'fashion',
-    label: '패션',
-    en: 'Fashion',
-    words: ['청바지', '후드티', '스니커즈', '선글라스', '가죽자켓', '원피스'],
+    id: 'webapp',
+    label: '웹/앱',
+    en: 'Web/App',
+    words: ['디스코드', '카카오톡', '티스토리', '인스타그램'],
   },
 ]
 
@@ -210,7 +150,10 @@ function App() {
 
   const createRoom = async () => {
     const trimmedName = playerName.trim()
-    if (!trimmedName) return
+    if (!trimmedName) {
+      setError('닉네임을 입력하세요.')
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -246,7 +189,7 @@ function App() {
       setIsHost(true)
       window.history.replaceState(null, '', `?room=${newRoomId}`)
     } catch (err) {
-      setError('방 생성에 실패했습니다.')
+      setError('방 생성에 실패했습니다. Firestore 규칙을 확인하세요.')
     } finally {
       setLoading(false)
     }
@@ -296,10 +239,7 @@ function App() {
     let topic = ''
     let word = ''
 
-    if (roomData.topicMode === 'custom') {
-      topic = roomData.customTopic.trim() || '커스텀 주제'
-      word = roomData.customWord.trim() || '커스텀 제시어'
-    } else if (roomData.topicMode === 'random') {
+    if (roomData.topicMode === 'random') {
       const pickedTopic = randomItem(TOPICS)
       topic = pickedTopic.label
       word = randomItem(pickedTopic.words)
@@ -441,6 +381,13 @@ function App() {
               </div>
             )}
           </div>
+          {shareLink && (
+            <div className="share-link">
+              <p className="label">방 링크</p>
+              <p>{shareLink}</p>
+              <button className="ghost" onClick={copyLink}>링크 복사</button>
+            </div>
+          )}
           {error && <p className="error">{error}</p>}
         </section>
 
@@ -463,13 +410,6 @@ function App() {
                 </div>
               </div>
               <div className="card">
-                {shareLink && (
-                  <div className="share-link">
-                    <p className="label">방 링크</p>
-                    <p>{shareLink}</p>
-                    <button className="ghost" onClick={copyLink}>링크 복사</button>
-                  </div>
-                )}
                 <h3>제시어 설정</h3>
                 <div className="radio-group">
                   <label className={roomData?.topicMode === 'random' ? 'radio active' : 'radio'}>
@@ -494,17 +434,6 @@ function App() {
                     />
                     주제 선택
                   </label>
-                  <label className={roomData?.topicMode === 'custom' ? 'radio active' : 'radio'}>
-                    <input
-                      type="radio"
-                      name="topicMode"
-                      value="custom"
-                      checked={roomData?.topicMode === 'custom'}
-                      onChange={() => updateRoomSettings({ topicMode: 'custom' })}
-                      disabled={!isHost}
-                    />
-                    커스텀 입력
-                  </label>
                 </div>
 
                 {roomData?.topicMode === 'select' && (
@@ -521,25 +450,6 @@ function App() {
                       ))}
                     </select>
                     <p className="hint">선택한 주제 내에서 제시어가 랜덤으로 지정됩니다.</p>
-                  </div>
-                )}
-
-                {roomData?.topicMode === 'custom' && (
-                  <div className="stack">
-                    <input
-                      type="text"
-                      placeholder="주제"
-                      value={roomData?.customTopic || ''}
-                      onChange={(event) => updateRoomSettings({ customTopic: event.target.value })}
-                      disabled={!isHost}
-                    />
-                    <input
-                      type="text"
-                      placeholder="제시어"
-                      value={roomData?.customWord || ''}
-                      onChange={(event) => updateRoomSettings({ customWord: event.target.value })}
-                      disabled={!isHost}
-                    />
                   </div>
                 )}
 
