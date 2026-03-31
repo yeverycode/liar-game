@@ -16,6 +16,8 @@
   border-radius: 16px;
   background: transparent;
   box-shadow: none;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .brand {
@@ -41,6 +43,7 @@
 .nav {
   display: flex;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .nav a {
@@ -525,6 +528,10 @@
   .team-cards {
     grid-template-columns: repeat(1, minmax(0, 1fr));
   }
+
+  .team-card {
+    height: 260px;
+  }
 }
 
 .team-card-image {
@@ -632,6 +639,14 @@
     padding: 24px 16px 40px;
   }
 
+  .site-header {
+    padding: 12px 14px;
+  }
+
+  .brand-title {
+    font-size: 0.95rem;
+  }
+
   .panel-footer {
     flex-direction: column;
     align-items: stretch;
@@ -639,5 +654,106 @@
 
   .input-row {
     flex-direction: column;
+  }
+
+  .panel {
+    padding: 20px;
+  }
+
+  .card,
+  .turn-card,
+  .order,
+  .result-card {
+    padding: 16px;
+  }
+
+  .share-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 520px) {
+  .app {
+    padding: 20px 12px 32px;
+    gap: 32px;
+  }
+
+  .site-header {
+    justify-content: center;
+  }
+
+  .nav {
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .nav a,
+  .nav-link {
+    font-size: 0.9rem;
+    padding: 6px 10px;
+  }
+
+  .host-tabs {
+    flex-wrap: wrap;
+  }
+
+  .tab {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+  }
+
+  .inline {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .inline input[type='number'] {
+    max-width: 100%;
+  }
+
+  .badge {
+    font-size: 0.78rem;
+  }
+
+  .panel-header h3 {
+    font-size: 1.05rem;
+  }
+
+  .section h2 {
+    font-size: 1.4rem;
+  }
+
+  .footer-icon {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (max-width: 420px) {
+  .panel {
+    padding: 16px;
+  }
+
+  .card,
+  .turn-card,
+  .order,
+  .result-card {
+    padding: 14px;
+  }
+
+  .radio {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  .vote-card {
+    padding: 12px;
+  }
+
+  .player-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
   }
 }
