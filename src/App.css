@@ -213,6 +213,12 @@
   white-space: nowrap;
 }
 
+.radio input[type='radio'] {
+  width: auto;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
 .radio.active {
   border-color: var(--google-blue);
   background: var(--accent-soft);
