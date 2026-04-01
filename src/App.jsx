@@ -186,6 +186,7 @@ function App() {
         selectedTopic: '',
         selectedWord: '',
         liarId: null,
+        liarHistory: [],
         turnOrder: [],
         turnIndex: 0,
         votes: {},
@@ -271,13 +272,20 @@ function App() {
     }
 
     const shuffledPlayers = shuffle(roomPlayers)
-    const liarPick = randomItem(shuffledPlayers)
+    const activePlayerIds = shuffledPlayers.map((player) => player.id)
+    const existingHistory = Array.isArray(roomData.liarHistory) ? roomData.liarHistory : []
+    const filteredHistory = existingHistory.filter((id) => activePlayerIds.includes(id))
+    const remaining = activePlayerIds.filter((id) => !filteredHistory.includes(id))
+    const liarPool = remaining.length > 0 ? remaining : activePlayerIds
+    const liarId = randomItem(liarPool)
+    const nextHistory = remaining.length > 0 ? [...filteredHistory, liarId] : [liarId]
 
     await updateDoc(roomRef, {
       stage: STAGES.REVEAL,
       selectedTopic: topic,
       selectedWord: word,
-      liarId: liarPick.id,
+      liarId,
+      liarHistory: nextHistory,
       turnOrder: shuffledPlayers.map((player) => player.id),
       turnIndex: 0,
       votes: {},
